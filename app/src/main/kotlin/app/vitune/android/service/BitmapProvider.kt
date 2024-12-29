@@ -48,9 +48,9 @@ class BitmapProvider(
 
         val size = getBitmapSize()
         defaultBitmap = Bitmap.createBitmap(
-            /* width = */ size,
-            /* height = */ size,
-            /* config = */ Bitmap.Config.ARGB_8888
+            size,
+            size,
+            Bitmap.Config.ARGB_8888
         ).applyCanvas {
             drawColor(getColor(isSystemInDarkMode))
         }
@@ -60,7 +60,7 @@ class BitmapProvider(
 
     fun load(
         uri: Uri?,
-        onDone: (Bitmap) -> Unit = { }
+        onDone: (Bitmap) -> Unit = {}
     ) {
         if (lastUri == uri) {
             listener?.invoke(lastBitmap)
@@ -81,17 +81,21 @@ class BitmapProvider(
                 .data(uri.thumbnail(getBitmapSize()))
                 .allowHardware(false)
                 .listener(
-                    onError = { _, _ ->
+                    onStart = {
+                        Log.d("BitmapProvider", "Image loading started for $uri")
+                    },
+                    onError = { _, throwable ->
+                        Log.e("BitmapProvider", "Image loading failed for $uri", throwable)
                         lastBitmap = null
                         onDone(bitmap)
                     },
                     onSuccess = { _, result ->
-                        val bitmap = result.image.run { toBitmap(width, height) }
+                        val bitmap = result.image.toBitmap(width, height)
                         if (bitmap != null && !bitmap.isRecycled) {
                             lastBitmap = bitmap
                             onDone(lastBitmap!!)
                         } else {
-                            Log.e("BitmapError", "Cannot use a recycled or null Bitmap")
+                            Log.e("BitmapProvider", "Cannot use a recycled or null Bitmap. Result: $result")
                             lastBitmap = null
                             onDone(bitmap)
                         }

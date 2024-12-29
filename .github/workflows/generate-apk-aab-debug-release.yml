@@ -1,7 +1,12 @@
-name: Generate APK (Direct Artifact Download)
+name: Generate and Sign APK (Direct Artifact Download)
 
 env:
   main_project_module: app
+  # Define the path to your keystore
+  ks_path: frogoboxdev.jks
+  ks_store_pass: cronoclez
+  ks_alias: frogobox
+  ks_alias_pass: xeonranger
 
 on:
   push:
@@ -26,11 +31,16 @@ jobs:
       - name: Change Gradle wrapper permissions
         run: chmod +x ./gradlew
 
-      - name: Build APK
-        run: ./gradlew ${{ env.main_project_module }}:assembleRelease
+      - name: Set up Keystore for Signing
+        run: |
+          echo ${{ secrets.KEYSTORE_FILE }} | base64 --decode > ${{ env.ks_path }}
+          echo "Signing config set up"
 
-      - name: Upload APK as Artifact
+      - name: Build and Sign APK
+        run: ./gradlew ${ env.main_project_module }:assembleRelease -Psigning.storeFile=${{ env.ks_path }} -Psigning.storePassword=${{ env.ks_store_pass }} -Psigning.keyAlias=${{ env.ks_alias }} -Psigning.keyPassword=${{ env.ks_alias_pass }}
+
+      - name: Upload Signed APK as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Generated APK
+          name: Generated Signed APK
           path: ${{ env.main_project_module }}/build/outputs/apk/release/*.apk

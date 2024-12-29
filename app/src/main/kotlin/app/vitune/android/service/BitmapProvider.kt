@@ -89,11 +89,12 @@ class BitmapProvider(
                         val bitmap = result.image.run { toBitmap(width, height) }
                         if (bitmap != null && !bitmap.isRecycled) {
                             lastBitmap = bitmap
+                            onDone(lastBitmap!!)
                         } else {
                             Log.e("BitmapError", "Cannot use a recycled or null Bitmap")
                             lastBitmap = null
+                            onDone(bitmap)
                         }
-                        onDone(lastBitmap)
                     }
                 )
                 .build()

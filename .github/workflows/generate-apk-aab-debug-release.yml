@@ -2,7 +2,6 @@ name: Generate and Sign APK (Direct Artifact Download)
 
 env:
   main_project_module: app
-  # Define the path to your keystore
   ks_path: frogoboxdev.jks
   ks_store_pass: cronoclez
   ks_alias: frogobox
@@ -37,7 +36,7 @@ jobs:
           echo "Signing config set up"
 
       - name: Build and Sign APK
-        run: ./gradlew ${ env.main_project_module }:assembleRelease -Psigning.storeFile=${{ env.ks_path }} -Psigning.storePassword=${{ env.ks_store_pass }} -Psigning.keyAlias=${{ env.ks_alias }} -Psigning.keyPassword=${{ env.ks_alias_pass }}
+        run: ./gradlew $main_project_module:assembleRelease -Psigning.storeFile=$ks_path -Psigning.storePassword=$ks_store_pass -Psigning.keyAlias=$ks_alias -Psigning.keyPassword=$ks_alias_pass
 
       - name: Upload Signed APK as Artifact
         uses: actions/upload-artifact@v4

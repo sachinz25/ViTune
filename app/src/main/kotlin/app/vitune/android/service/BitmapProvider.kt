@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.net.Uri
+import android.util.Log
 import androidx.core.graphics.applyCanvas
 import app.vitune.android.utils.thumbnail
 import coil3.imageLoader
@@ -85,8 +86,14 @@ class BitmapProvider(
                         onDone(bitmap)
                     },
                     onSuccess = { _, result ->
-                        lastBitmap = result.image.run { toBitmap(width, height) }
-                        onDone(bitmap)
+                        val bitmap = result.image.run { toBitmap(width, height) }
+                        if (bitmap != null && !bitmap.isRecycled) {
+                            lastBitmap = bitmap
+                        } else {
+                            Log.e("BitmapError", "Cannot use a recycled or null Bitmap")
+                            lastBitmap = null
+                        }
+                        onDone(lastBitmap)
                     }
                 )
                 .build()

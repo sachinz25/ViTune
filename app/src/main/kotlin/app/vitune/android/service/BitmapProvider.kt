@@ -1,112 +1,103 @@
-package app.vitune.android.service
+package it.fast4x.rimusic.service
 
-import android.content.Context
+
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
-import android.util.Log
 import androidx.core.graphics.applyCanvas
-import app.vitune.android.utils.thumbnail
-import coil3.imageLoader
-import coil3.request.Disposable
-import coil3.request.ImageRequest
-import coil3.request.allowHardware
-import coil3.toBitmap
+import coil.imageLoader
+import coil.request.CachePolicy
+import coil.request.Disposable
+import coil.request.ImageRequest
+import it.fast4x.rimusic.utils.thumbnail
+import it.fast4x.rimusic.appContext
+import timber.log.Timber
 
-context(Context)
+//context(Context)
 class BitmapProvider(
-    private val getBitmapSize: () -> Int,
-    private val getColor: (isDark: Boolean) -> Int
+    private val bitmapSize: Int,
+    private val colorProvider: (isSystemInDarkMode: Boolean) -> Int
 ) {
     var lastUri: Uri? = null
         private set
 
-    private var lastBitmap: Bitmap? = null
-        set(value) {
-            field = value
-            listener?.invoke(value)
-        }
+    var lastBitmap: Bitmap? = null
     private var lastIsSystemInDarkMode = false
-    private var currentTask: Disposable? = null
+
+    private var lastEnqueued: Disposable? = null
 
     private lateinit var defaultBitmap: Bitmap
-    val bitmap get() = lastBitmap ?: defaultBitmap
 
-    private var listener: ((Bitmap?) -> Unit)? = null
+    val bitmap: Bitmap
+        get() = lastBitmap ?: defaultBitmap
+
+    var listener: ((Bitmap?) -> Unit)? = null
+        set(value) {
+            field = value
+            value?.invoke(lastBitmap)
+        }
 
     init {
         setDefaultBitmap()
     }
 
     fun setDefaultBitmap(): Boolean {
-        val isSystemInDarkMode = resources.configuration.uiMode and
+        val isSystemInDarkMode = appContext().resources.configuration.uiMode and
                 Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
 
         if (::defaultBitmap.isInitialized && isSystemInDarkMode == lastIsSystemInDarkMode) return false
 
         lastIsSystemInDarkMode = isSystemInDarkMode
 
-        val size = getBitmapSize()
-        defaultBitmap = Bitmap.createBitmap(
-            size,
-            size,
-            Bitmap.Config.ARGB_8888
-        ).applyCanvas {
-            drawColor(getColor(isSystemInDarkMode))
+        runCatching {
+            defaultBitmap =
+                Bitmap.createBitmap(bitmapSize, bitmapSize, Bitmap.Config.ARGB_8888).applyCanvas {
+                    drawColor(colorProvider(isSystemInDarkMode))
+                }
+        }.onFailure {
+            Timber.e("Failed set default bitmap in BitmapProvider ${it.stackTraceToString()}")
         }
 
         return lastBitmap == null
     }
 
-    fun load(
-        uri: Uri?,
-        onDone: (Bitmap) -> Unit = {}
-    ) {
+    fun load(uri: Uri?, onDone: (Bitmap) -> Unit) {
+        Timber.d("BitmapProvider load method being called")
         if (lastUri == uri) {
             listener?.invoke(lastBitmap)
             return
         }
 
-        currentTask?.dispose()
+        lastEnqueued?.dispose()
         lastUri = uri
 
-        if (uri == null) {
-            lastBitmap = null
-            onDone(bitmap)
-            return
-        }
-
-        currentTask = applicationContext.imageLoader.enqueue(
-            ImageRequest.Builder(applicationContext)
-                .data(uri.thumbnail(getBitmapSize()))
-                .allowHardware(false)
-                .listener(
-                    onStart = {
-                        Log.d("BitmapProvider", "Image loading started for $uri")
-                    },
-                    onError = { _, throwable ->
-                        Log.e("BitmapProvider", "Image loading failed for $uri", throwable)
-                        lastBitmap = null
-                        onDone(bitmap)
-                    },
-                    onSuccess = { _, result ->
-                        val bitmap = result.image.toBitmap(width, height)
-                        if (bitmap != null && !bitmap.isRecycled) {
-                            lastBitmap = bitmap
-                            onDone(lastBitmap!!)
-                        } else {
-                            Log.e("BitmapProvider", "Cannot use a recycled or null Bitmap. Result: $result")
+        runCatching {
+            lastEnqueued = appContext().imageLoader.enqueue(
+                ImageRequest.Builder(appContext())
+                    .networkCachePolicy(CachePolicy.ENABLED)
+                    .data(uri.thumbnail(bitmapSize))
+                    .allowHardware(false)
+                    .diskCacheKey(uri.thumbnail(bitmapSize).toString())
+                    //.memoryCacheKey(uri.thumbnail(bitmapSize).toString())
+                    .listener(
+                        onError = { _, result ->
+                            Timber.e("Failed to load bitmap ${result.throwable.stackTraceToString()}")
                             lastBitmap = null
                             onDone(bitmap)
+                            //listener?.invoke(lastBitmap)
+                        },
+                        onSuccess = { _, result ->
+                            lastBitmap = (result.drawable as BitmapDrawable).bitmap
+                            onDone(bitmap)
+                            //listener?.invoke(lastBitmap)
                         }
-                    }
-                )
-                .build()
-        )
-    }
+                    )
 
-    fun setListener(callback: ((Bitmap?) -> Unit)?) {
-        listener = callback
-        listener?.invoke(lastBitmap)
+                    .build()
+            )
+        }.onFailure {
+            Timber.e("Failed enqueue in BitmapProvider ${it.stackTraceToString()}")
+        }
     }
 }

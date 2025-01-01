@@ -800,21 +800,37 @@ class PlayerService : InvincibleService(), Player.Listener, PlaybackStatsListene
     }
 
     private fun maybeShowSongCoverInLockScreen() = handler.post {
-        val bitmap = if (isAtLeastAndroid13 || AppearancePreferences.isShowingThumbnailInLockscreen)
-            bitmapProvider.bitmap else null
+        // Get bitmap safely and make a copy before using it
+        val bitmap = if (isAtLeastAndroid13 || AppearancePreferences.isShowingThumbnailInLockscreen) {
+            bitmapProvider.bitmap?.let { sourceBitmap ->
+                if (!sourceBitmap.isRecycled) {
+                    try {
+                        // Create a copy of the bitmap that we can safely use
+                        sourceBitmap.copy(sourceBitmap.config, true)
+                    } catch (e: Exception) {
+                        null
+                    }
+                } else null
+            }
+        } else null
+        
         val uri = player.mediaMetadata.artworkUri?.toString()?.thumbnail(512)
 
-        metadataBuilder.putBitmap(MediaMetadata.METADATA_KEY_ART, bitmap)
-        metadataBuilder.putString(MediaMetadata.METADATA_KEY_ART_URI, uri)
+        metadataBuilder.apply {
+            // Use the safe bitmap copy
+            putBitmap(MediaMetadata.METADATA_KEY_ART, bitmap)
+            putString(MediaMetadata.METADATA_KEY_ART_URI, uri)
 
-        metadataBuilder.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, bitmap)
-        metadataBuilder.putString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI, uri)
+            putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, bitmap) 
+            putString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI, uri)
 
-        if (isAtLeastAndroid13 && player.currentMediaItemIndex == 0)
-            metadataBuilder.putText(
-                MediaMetadata.METADATA_KEY_TITLE,
-                "${player.mediaMetadata.title} "
-            )
+            if (isAtLeastAndroid13 && player.currentMediaItemIndex == 0) {
+                putText(
+                    MediaMetadata.METADATA_KEY_TITLE,
+                    "${player.mediaMetadata.title} "
+                )
+            }
+        }
 
         mediaSession.setMetadata(metadataBuilder.build())
     }

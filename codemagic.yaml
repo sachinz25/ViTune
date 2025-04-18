@@ -1,0 +1,13 @@
+workflows:
+  build-android:
+    name: Build Android APK
+    environment:
+      sdk: "30"
+      java: "17"
+    scripts:
+      - name: Grant execute permission for gradlew
+        script: chmod +x ./gradlew
+      - name: Build APK
+        script: ./gradlew assembleDebug
+    artifacts:
+      - app/build/outputs/apk/debug/*.apk

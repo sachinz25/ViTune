@@ -1,14 +1,17 @@
 workflows:
-  build-android:
-    name: Build Android APK
+  android-workflow:
+    name: Build Kotlin Android App
     environment:
-      android:
-        image: latest
-      java: 17
+      vars:
+        JAVA_VERSION: 17
     scripts:
-      - name: Set Gradle permissions
+      - name: Use correct Java version
+        script: |
+          sudo update-alternatives --set java /usr/lib/jvm/java-17-openjdk-amd64/bin/java
+          java -version
+      - name: Make gradlew executable
         script: chmod +x ./gradlew
-      - name: Build Debug APK
+      - name: Build debug APK
         script: ./gradlew assembleDebug
     artifacts:
       - app/build/outputs/apk/debug/*.apk
